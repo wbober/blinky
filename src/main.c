@@ -1,43 +1,44 @@
-/*
- * Copyright (c) 2016 Intel Corporation
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/led_strip.h>
+#include <zephyr/logging/log.h>
 
-/* 1000 msec = 1 sec */
-#define SLEEP_TIME_MS   1000
+LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
-/* The devicetree node identifier for the "led0" alias. */
-#define LED0_NODE DT_ALIAS(led0)
-
-/*
- * A build error on this line means your board is unsupported.
- * See the sample documentation for information on how to fix this.
- */
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+#define LED_STRIP_SIZE DT_PROP(DT_NODELABEL(led_strip), chain_length)
+const struct device *dev = DEVICE_DT_GET(DT_NODELABEL(led_strip));
+struct led_rgb led_rgb[LED_STRIP_SIZE];
 
 int main(void)
 {
 	int ret;
+	int i = 3;
 
-	if (!gpio_is_ready_dt(&led)) {
+	if (!dev) {
+		LOG_ERR("LED strip device not found");
 		return 0;
 	}
 
-	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
-	if (ret < 0) {
+	if (!device_is_ready(dev)) {
+		LOG_ERR("LED strip device %s is not ready", dev->name);
 		return 0;
 	}
+
+	LOG_INF("Found LED strip device %s", dev->name);
 
 	while (1) {
-		ret = gpio_pin_toggle_dt(&led);
+		memset(led_rgb, 0, sizeof(led_rgb));
+		led_rgb[3].r = 0xff;
+		// led_rgb[3].g = 0xff;
+		led_rgb[3].b = 0xff;
+		
+		ret = led_strip_update_rgb(dev, led_rgb, LED_STRIP_SIZE);	
 		if (ret < 0) {
-			return 0;
+			LOG_ERR("failed to update strip");
 		}
-		k_msleep(SLEEP_TIME_MS);
+		
+		k_sleep(K_MSEC(1000));
 	}
+
 	return 0;
 }
